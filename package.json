@@ -1,0 +1,53 @@
+{
+  "name": "@vocalstack/sanity",
+  "version": "0.1.0",
+  "description": "VocalStack for Sanity Studio: a Transcribe button next to every audio file.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@sanity/ui": "^2.0.0 || ^3.0.0 || ^4.0.0",
+    "react": "^18 || ^19",
+    "sanity": "^3 || ^4 || ^5 || ^6"
+  },
+  "peerDependenciesMeta": {
+    "@sanity/ui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@sanity/ui": "^3.1.11",
+    "@types/react": "^19.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sanity": "4.22.1",
+    "styled-components": "^6.1.15",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/vocalstack/sanity-plugin.git"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
