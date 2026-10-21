@@ -1,3 +1,6 @@
 node_modules
 *.tsbuildinfo
 .DS_Store
+.sanity
+e2e/shots
+e2e/.logs

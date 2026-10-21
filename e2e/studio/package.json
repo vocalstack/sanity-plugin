@@ -1,0 +1,12 @@
+{
+  "name": "vocalstack-sanity-e2e-studio",
+  "private": true,
+  "type": "module",
+  "description": "The Studio the e2e test runs. Its packages resolve from the plugin repo's node_modules (its devDependencies); nothing installs here.",
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sanity": "4.22.1",
+    "styled-components": "^6.1.15"
+  }
+}
