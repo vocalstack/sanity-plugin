@@ -19,7 +19,7 @@ export const toSaved = (sentences: TranscriptSentence[]): SavedSentence[] =>
 
 export async function checkJob(api: VocalStackAPI, recordingId: string): Promise<JobOutcome> {
   const job = await api.job(recordingId)
-  if (job.state === 'failed' && job.errorCode === 'stopped') return { kind: 'stopped' }
+  if (job.state === 'stopped' || (job.state === 'failed' && job.errorCode === 'stopped')) return { kind: 'stopped' }
   if (job.state === 'failed' || job.state === 'cropping') {
     const error = job.state === 'cropping' ? 'VocalStack is waiting for a crop window; open the transcription in VocalStack.' : (job.error ?? 'The transcription failed.')
     return { kind: 'failed', message: error, save: { error, status: 'failed' } }

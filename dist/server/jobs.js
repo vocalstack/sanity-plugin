@@ -11,7 +11,7 @@ const round = (n) => Math.round(n * 1000) / 1000;
 export const toSaved = (sentences) => sentences.map((s, i) => ({ _key: `s${s.id ?? i}`, _type: 'sentence', end: round(s.end), speaker: s.speaker, start: round(s.start), text: s.text }));
 export async function checkJob(api, recordingId) {
     const job = await api.job(recordingId);
-    if (job.state === 'failed' && job.errorCode === 'stopped')
+    if (job.state === 'stopped' || (job.state === 'failed' && job.errorCode === 'stopped'))
         return { kind: 'stopped' };
     if (job.state === 'failed' || job.state === 'cropping') {
         const error = job.state === 'cropping' ? 'VocalStack is waiting for a crop window; open the transcription in VocalStack.' : (job.error ?? 'The transcription failed.');
