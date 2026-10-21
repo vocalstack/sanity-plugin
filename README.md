@@ -4,10 +4,8 @@ VocalStack for [Sanity](https://www.sanity.io) Studio 3 and later: a **Transcrib
 
 ## Install
 
-Not on npm. Install from this repo; `dist/` is committed, so nothing builds on install (run `pnpm build` and commit `dist/` with every change):
-
 ```sh
-npm i github:vocalstack/sanity-plugin
+npm i @vocalstack/sanity
 ```
 
 VocalStack API keys are for servers: the API refuses a key sent from a web page. So the plugin has two halves, the Studio plugin and a small server handler that holds the key.
