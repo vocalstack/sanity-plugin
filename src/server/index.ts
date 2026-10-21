@@ -17,13 +17,18 @@ export type { ConnectionResponse, JobOutcome, StartRequest, StartResponse } from
 export type VocalStackHandlerOptions = {
   /** A VocalStack API key (`vs_key_…`, Read + Write). Default: `process.env.VOCALSTACK_API_KEY`. */
   apiKey?: string
-  /** The dataset the Studio edits, and a token that can read it (a Viewer token is enough). */
-  sanity: { apiVersion?: string; dataset: string; projectId: string; token: string }
+  /**
+   * The dataset the Studio edits, and a token that can read it (a Viewer token is enough).
+   * `apiHost` and `useProjectHostname` work as in `@sanity/client`: requests go to
+   * `https://<projectId>.api.sanity.io` unless you use a custom API domain.
+   */
+  sanity: { apiHost?: string; apiVersion?: string; dataset: string; projectId: string; token: string; useProjectHostname?: boolean }
   /** A Whisper language code (`en`, `ro`, …). Leave out to auto-detect. */
   spokenLanguage?: string
   /**
-   * The public URL VocalStack fetches the audio from. Default: the asset's URL on
-   * Sanity's CDN. Return a signed URL here if your assets are private.
+   * The URL of the audio. Default: the asset's URL on Sanity's CDN. Return a signed URL
+   * here if your assets are private. VocalStack fetches a public URL itself; for one it
+   * cannot reach (localhost, a private network) the handler reads the file and uploads it.
    */
   fileURL?: (asset: SanityFileAsset) => Promise<string | undefined> | string | undefined
   /**
@@ -33,6 +38,37 @@ export type VocalStackHandlerOptions = {
   allowedOrigins?: string[]
   /** Default https://api.vocalstack.com */
   apiURL?: string
+}
+
+/** `https://<projectId>.api.sanity.io`, or the custom API host, as `@sanity/client` builds it. */
+function sanityHost({ apiHost = 'https://api.sanity.io', projectId, useProjectHostname = true }: VocalStackHandlerOptions['sanity']): string {
+  const host = new URL(apiHost)
+  if (useProjectHostname) host.hostname = `${projectId}.${host.hostname}`
+  return host.origin
+}
+
+/**
+ * Whether VocalStack can fetch this address itself. The API refuses loopback,
+ * private and link-local hosts, so for those the handler sends the bytes instead.
+ */
+function isPublicURL(url: string): boolean {
+  const { hostname, protocol } = new URL(url)
+  if (protocol !== 'https:' && protocol !== 'http:') return false
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false
+  const v4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])]
+    return !(a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127))
+  }
+  if (host.includes(':')) return !(host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80'))
+  return true
+}
+
+async function fetchFile(url: string): Promise<Blob> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Could not read the audio file (${res.status} from ${url}).`)
+  return res.blob()
 }
 
 export type SanityFileAsset = { _id: string; mimeType?: string; originalFilename?: string; url?: string }
@@ -45,7 +81,7 @@ const SESSION_CACHE_MS = 60_000
 export function createVocalStackHandler(options: VocalStackHandlerOptions): Handler {
   const apiKey = options.apiKey ?? (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.VOCALSTACK_API_KEY
   const { dataset, projectId, token } = options.sanity
-  const sanityBase = `https://${projectId}.api.sanity.io/v${(options.sanity.apiVersion ?? '2024-01-01').replace(/^v/, '')}`
+  const sanityBase = `${sanityHost(options.sanity)}/v${(options.sanity.apiVersion ?? '2024-01-01').replace(/^v/, '')}`
   const sessions = new Map<string, number>()
   let account: string | undefined
 
@@ -126,11 +162,13 @@ export function createVocalStackHandler(options: VocalStackHandlerOptions): Hand
         const url = (await options.fileURL?.(asset)) ?? asset.url
         if (!url) return fail(400, 'There is no audio file here.')
 
-        const tx = await api.transcribeURL(url, {
+        const job = {
           idempotencyKey: `sanity:${body.documentId.replace(/^drafts\./, '')}:${body.fieldPath ?? ''}:${crypto.randomUUID()}`,
           name: (typeof body.name === 'string' && body.name.trim()) || asset.originalFilename || 'Sanity audio',
           spokenLanguage: options.spokenLanguage,
-        })
+        }
+        // VocalStack refuses links to loopback and private addresses: send those files' bytes.
+        const tx = isPublicURL(url) ? await api.transcribeURL(url, job) : await api.transcribeFile(await fetchFile(url), asset.originalFilename || 'audio', job)
         if (!tx.job) return fail(502, 'VocalStack did not start a job for this file.')
         return json({ recordingId: tx.job.recordingId, status: 'processing', transcriptionId: tx.id } satisfies StartResponse, 202)
       }

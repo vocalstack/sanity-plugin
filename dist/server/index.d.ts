@@ -2,18 +2,25 @@ export type { ConnectionResponse, JobOutcome, StartRequest, StartResponse } from
 export type VocalStackHandlerOptions = {
     /** A VocalStack API key (`vs_key_…`, Read + Write). Default: `process.env.VOCALSTACK_API_KEY`. */
     apiKey?: string;
-    /** The dataset the Studio edits, and a token that can read it (a Viewer token is enough). */
+    /**
+     * The dataset the Studio edits, and a token that can read it (a Viewer token is enough).
+     * `apiHost` and `useProjectHostname` work as in `@sanity/client`: requests go to
+     * `https://<projectId>.api.sanity.io` unless you use a custom API domain.
+     */
     sanity: {
+        apiHost?: string;
         apiVersion?: string;
         dataset: string;
         projectId: string;
         token: string;
+        useProjectHostname?: boolean;
     };
     /** A Whisper language code (`en`, `ro`, …). Leave out to auto-detect. */
     spokenLanguage?: string;
     /**
-     * The public URL VocalStack fetches the audio from. Default: the asset's URL on
-     * Sanity's CDN. Return a signed URL here if your assets are private.
+     * The URL of the audio. Default: the asset's URL on Sanity's CDN. Return a signed URL
+     * here if your assets are private. VocalStack fetches a public URL itself; for one it
+     * cannot reach (localhost, a private network) the handler reads the file and uploads it.
      */
     fileURL?: (asset: SanityFileAsset) => Promise<string | undefined> | string | undefined;
     /**

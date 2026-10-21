@@ -1,12 +1,45 @@
 import { accountLabel, DEFAULT_API_URL, VocalStackAPI, VocalStackAPIError } from '../api.js';
 import { SESSION_MAX_AGE_MS, SESSION_PREFIX, SESSION_TYPE, sha256Hex } from '../wire.js';
 import { checkJob, stopJob } from './jobs.js';
+/** `https://<projectId>.api.sanity.io`, or the custom API host, as `@sanity/client` builds it. */
+function sanityHost({ apiHost = 'https://api.sanity.io', projectId, useProjectHostname = true }) {
+    const host = new URL(apiHost);
+    if (useProjectHostname)
+        host.hostname = `${projectId}.${host.hostname}`;
+    return host.origin;
+}
+/**
+ * Whether VocalStack can fetch this address itself. The API refuses loopback,
+ * private and link-local hosts, so for those the handler sends the bytes instead.
+ */
+function isPublicURL(url) {
+    const { hostname, protocol } = new URL(url);
+    if (protocol !== 'https:' && protocol !== 'http:')
+        return false;
+    const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal'))
+        return false;
+    const v4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (v4) {
+        const [a, b] = [Number(v4[1]), Number(v4[2])];
+        return !(a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127));
+    }
+    if (host.includes(':'))
+        return !(host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80'));
+    return true;
+}
+async function fetchFile(url) {
+    const res = await fetch(url);
+    if (!res.ok)
+        throw new Error(`Could not read the audio file (${res.status} from ${url}).`);
+    return res.blob();
+}
 /** Verified sessions, briefly, so a poll every 3 s is not a Sanity query every 3 s. */
 const SESSION_CACHE_MS = 60_000;
 export function createVocalStackHandler(options) {
     const apiKey = options.apiKey ?? globalThis.process?.env?.VOCALSTACK_API_KEY;
     const { dataset, projectId, token } = options.sanity;
-    const sanityBase = `https://${projectId}.api.sanity.io/v${(options.sanity.apiVersion ?? '2024-01-01').replace(/^v/, '')}`;
+    const sanityBase = `${sanityHost(options.sanity)}/v${(options.sanity.apiVersion ?? '2024-01-01').replace(/^v/, '')}`;
     const sessions = new Map();
     let account;
     async function query(groq, params) {
@@ -91,11 +124,13 @@ export function createVocalStackHandler(options) {
                 const url = (await options.fileURL?.(asset)) ?? asset.url;
                 if (!url)
                     return fail(400, 'There is no audio file here.');
-                const tx = await api.transcribeURL(url, {
+                const job = {
                     idempotencyKey: `sanity:${body.documentId.replace(/^drafts\./, '')}:${body.fieldPath ?? ''}:${crypto.randomUUID()}`,
                     name: (typeof body.name === 'string' && body.name.trim()) || asset.originalFilename || 'Sanity audio',
                     spokenLanguage: options.spokenLanguage,
-                });
+                };
+                // VocalStack refuses links to loopback and private addresses: send those files' bytes.
+                const tx = isPublicURL(url) ? await api.transcribeURL(url, job) : await api.transcribeFile(await fetchFile(url), asset.originalFilename || 'audio', job);
                 if (!tx.job)
                     return fail(502, 'VocalStack did not start a job for this file.');
                 return json({ recordingId: tx.job.recordingId, status: 'processing', transcriptionId: tx.id }, 202);
