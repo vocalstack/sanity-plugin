@@ -2,6 +2,8 @@
 
 VocalStack for [Sanity](https://www.sanity.io) Studio 3 and later: a **Transcribe** button next to every audio file. The transcript is saved on the document as text plus timed sentences.
 
+Read more about the [VocalStack transcription plugin for Sanity](https://vocalstack.com/sanity-transcription-plugin/) on the [VocalStack website](https://vocalstack.com/).
+
 ## Install
 
 ```sh
