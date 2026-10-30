@@ -4,6 +4,10 @@
  */
 
 export const DEFAULT_API_URL = 'https://api.vocalstack.com'
+/** Sent as the User-Agent of every call to VocalStack (they run in the
+ *  handler, on the server): VocalStack lists the transcriptions it makes
+ *  as made in Sanity. Keep it to package.json's version. */
+export const PLUGIN_VERSION = '0.1.0'
 export const DEFAULT_DASHBOARD_URL = 'https://app.vocalstack.com'
 
 export type JobState = 'cropping' | 'done' | 'failed' | 'fetching' | 'queued' | 'stopped' | 'transcribing'
@@ -55,7 +59,7 @@ export class VocalStackAPI {
   ) {}
 
   private async request<T>(method: string, path: string, body?: BodyInit | object, headers: Record<string, string> = {}): Promise<T> {
-    const init: RequestInit = { headers: { accept: 'application/json', authorization: `Bearer ${this.apiKey}`, ...headers }, method }
+    const init: RequestInit = { headers: { accept: 'application/json', authorization: `Bearer ${this.apiKey}`, 'user-agent': `VocalStack-Sanity/${PLUGIN_VERSION}`, ...headers }, method }
     if (body instanceof FormData) init.body = body
     else if (body !== undefined) {
       init.body = JSON.stringify(body)

@@ -3,6 +3,10 @@
  * SDK is not on npm yet). Contract: https://api.vocalstack.com/v1/openapi.json
  */
 export const DEFAULT_API_URL = 'https://api.vocalstack.com';
+/** Sent as the User-Agent of every call to VocalStack (they run in the
+ *  handler, on the server): VocalStack lists the transcriptions it makes
+ *  as made in Sanity. Keep it to package.json's version. */
+export const PLUGIN_VERSION = '0.1.0';
 export const DEFAULT_DASHBOARD_URL = 'https://app.vocalstack.com';
 export class VocalStackAPIError extends Error {
     code;
@@ -21,7 +25,7 @@ export class VocalStackAPI {
         this.baseURL = baseURL;
     }
     async request(method, path, body, headers = {}) {
-        const init = { headers: { accept: 'application/json', authorization: `Bearer ${this.apiKey}`, ...headers }, method };
+        const init = { headers: { accept: 'application/json', authorization: `Bearer ${this.apiKey}`, 'user-agent': `VocalStack-Sanity/${PLUGIN_VERSION}`, ...headers }, method };
         if (body instanceof FormData)
             init.body = body;
         else if (body !== undefined) {
