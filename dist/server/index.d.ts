@@ -1,4 +1,4 @@
-export type { ConnectionResponse, JobOutcome, StartRequest, StartResponse } from '../wire.js';
+export type { ConnectionResponse, ConnectionWorkspace, JobOutcome, StartRequest, StartResponse } from '../wire.js';
 export type VocalStackHandlerOptions = {
     /** A VocalStack API key (`vs_key_…`, Read + Write). Default: `process.env.VOCALSTACK_API_KEY`. */
     apiKey?: string;
@@ -38,4 +38,9 @@ export type SanityFileAsset = {
     url?: string;
 };
 type Handler = (request: Request) => Promise<Response>;
+/**
+ * The connection answer, briefly: a rename or a new icon in the Dashboard, and the
+ * icon's re-signed link, reach the Studio within minutes, without a redeploy.
+ */
+export declare const CONNECTION_CACHE_MS: number;
 export declare function createVocalStackHandler(options: VocalStackHandlerOptions): Handler;

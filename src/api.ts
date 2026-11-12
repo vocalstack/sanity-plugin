@@ -3,11 +3,13 @@
  * SDK is not on npm yet). Contract: https://api.vocalstack.com/v1/openapi.json
  */
 
+import type { ConnectionWorkspace } from './wire.js'
+
 export const DEFAULT_API_URL = 'https://api.vocalstack.com'
 /** Sent as the User-Agent of every call to VocalStack (they run in the
  *  handler, on the server): VocalStack lists the transcriptions it makes
  *  as made in Sanity. Keep it to package.json's version. */
-export const PLUGIN_VERSION = '0.1.0'
+export const PLUGIN_VERSION = '0.2.0'
 export const DEFAULT_DASHBOARD_URL = 'https://app.vocalstack.com'
 
 export type JobState = 'cropping' | 'done' | 'failed' | 'fetching' | 'queued' | 'stopped' | 'transcribing'
@@ -118,4 +120,22 @@ export function accountLabel(me: Record<string, unknown>): string | undefined {
     }
   }
   return pick(me.principal, 'name', 'displayName') ?? pick(me.organization, 'name') ?? pick(me.user, 'email', 'name') ?? pick(me, 'email', 'name', 'displayName')
+}
+
+/**
+ * The workspace the key belongs to, from `/v1/me` (`workspace: { id, name, personal,
+ * iconUrl }`), with the icon's link made absolute against the API's address. Undefined
+ * when the API does not say (an older VocalStack).
+ */
+export function workspaceOf(me: Record<string, unknown>, baseURL = DEFAULT_API_URL): ConnectionWorkspace | undefined {
+  const w = me.workspace as Record<string, unknown> | null | undefined
+  if (!w || typeof w !== 'object' || typeof w.id !== 'string' || !w.id || typeof w.name !== 'string' || !w.name.trim()) return undefined
+  let iconUrl: null | string = null
+  if (typeof w.iconUrl === 'string' && w.iconUrl) {
+    try {
+      const url = new URL(w.iconUrl, baseURL)
+      if (url.protocol === 'https:' || url.protocol === 'http:') iconUrl = url.href
+    } catch {}
+  }
+  return { iconUrl, id: w.id, name: w.name, personal: w.personal === true }
 }

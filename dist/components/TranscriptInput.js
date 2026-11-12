@@ -5,7 +5,9 @@ import { set, setIfMissing, unset, useFormValue } from 'sanity';
 import { findAudio, jobName, POLL_MS, restored, siblingFileRefs, TRANSCRIPT_TYPE } from '../core.js';
 import { HandlerError, useConnection, useHandler } from '../handler.js';
 import { transcriptText } from '../text.js';
+import { NOT_IN_WORKSPACE } from '../wire.js';
 import { Logo, useAccent } from './Brand.js';
+import { WorkspaceMark } from './WorkspaceMark.js';
 /** 2433.0 → "40:33", 4000 → "1:06:40". */
 const clock = (s) => {
     const t = Math.floor(s);
@@ -46,6 +48,10 @@ export function TranscriptInput(props) {
     const [stopping, setStopping] = useState(false);
     const [progress, setProgress] = useState({});
     const [error, setError] = useState();
+    // The recording this field was following, when the connected workspace does not have it:
+    // VOCALSTACK_API_KEY now belongs to another workspace. The field offers Transcribe again.
+    const [lost, setLost] = useState();
+    const [changing, setChanging] = useState(false);
     // A short note after a job ends. Inline rather than a toast: Sanity UI moved its toasts between versions.
     const [notice, setNotice] = useState();
     useEffect(() => {
@@ -98,6 +104,8 @@ export function TranscriptInput(props) {
             catch (err) {
                 if (cancelled)
                     return;
+                if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE)
+                    setLost(recordingId);
                 // A network blip or a server hiccup should not end the wait; anything refused should.
                 if (err instanceof HandlerError && err.status && err.status < 500)
                     return setError(err.message);
@@ -143,13 +151,17 @@ export function TranscriptInput(props) {
                 finish(outcome);
         }
         catch (err) {
+            if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE)
+                setLost(recordingId);
             setError(err.message);
         }
         finally {
             setStopping(false);
         }
     };
-    const busy = status === 'processing';
+    const isLost = status === 'processing' && Boolean(recordingId) && lost === recordingId;
+    const busy = status === 'processing' && !isLost;
+    const workspace = connection?.connected ? connection.workspace : undefined;
     const shownError = error ?? (status === 'failed' ? (value?.error ?? undefined) : undefined);
     const partialText = useMemo(() => (busy && progress.partial?.length ? transcriptText(progress.partial) : undefined), [busy, progress.partial]);
     const muted = { muted: true, size: 1 };
@@ -164,9 +176,9 @@ export function TranscriptInput(props) {
     else if (!asset && !busy)
         action = _jsx(Text, { ...muted, children: refs.length ? 'Only audio files can be transcribed.' : 'Add an audio file, then transcribe.' });
     else {
-        action = (_jsxs(Flex, { gap: 2, wrap: "wrap", children: [_jsx(Button, { disabled: busy || starting || readOnly || !asset, onClick: transcribe, text: busy || starting ? 'Transcribing…' : status === 'done' ? 'Transcribe again' : 'Transcribe', tone: "primary" }), busy && _jsx(Button, { disabled: stopping || readOnly, mode: "ghost", onClick: stop, text: stopping ? 'Stopping…' : 'Stop' })] }));
+        action = (_jsxs(Flex, { gap: 2, wrap: "wrap", children: [_jsx(Button, { disabled: busy || starting || readOnly || !asset, onClick: transcribe, text: busy || starting ? 'Transcribing…' : status === 'done' || isLost ? 'Transcribe again' : 'Transcribe', tone: "primary" }), busy && _jsx(Button, { disabled: stopping || readOnly, mode: "ghost", onClick: stop, text: stopping ? 'Stopping…' : 'Stop' })] }));
     }
-    return (_jsx(Card, { border: true, padding: 3, radius: 2, children: _jsxs(Stack, { space: 3, children: [_jsx(Logo, { height: 14 }), action, busy && (_jsxs(Stack, { space: 2, children: [_jsxs(Text, { ...muted, children: [PHASES[progress.phase ?? 'queued'] ?? progress.phase, progress.progress ? ` · ${progress.progress}%` : '…', progress.audio?.totalS ? ` · ${clock(progress.audio.processedS)} of ${clock(progress.audio.totalS)}` : ''] }), _jsx(Card, { radius: 1, style: { height: 4, overflow: 'hidden' }, tone: "transparent", children: _jsx("div", { style: { background: accent, height: '100%', transition: 'width .4s', width: `${progress.progress || 2}%` } }) })] })), notice && (_jsx(Card, { padding: 2, radius: 2, tone: "positive", children: _jsx(Text, { size: 1, children: notice }) })), !busy && status === 'done' && !shownError && (_jsxs(Text, { ...muted, children: ["Transcribed", value?.language ? ` (${value.language})` : '', value?.sentences?.length ? ` · ${value.sentences.length} sentences with timings` : '', "."] })), shownError && (_jsx(Card, { padding: 2, radius: 2, tone: "critical", children: _jsx(Text, { size: 1, children: shownError }) })), (partialText || value?.transcript) && (_jsx(Box, { children: _jsx(TextArea, { onChange: (e) => {
+    return (_jsx(Card, { border: true, padding: 3, radius: 2, children: _jsxs(Stack, { space: 3, children: [_jsxs(Flex, { align: "center", gap: 3, justify: "space-between", wrap: "wrap", children: [_jsx(Logo, { height: 14 }), workspace && (_jsxs(Flex, { align: "center", "data-testid": "vocalstack-workspace", gap: 2, style: { minWidth: 0 }, children: [_jsx(Text, { ...muted, children: "Workspace" }), _jsx(WorkspaceMark, { size: 18, workspace: workspace }), _jsx(Text, { size: 1, textOverflow: "ellipsis", weight: "medium", children: workspace.name }), _jsx(Button, { "aria-expanded": changing, fontSize: 1, mode: "bleed", onClick: () => setChanging((c) => !c), padding: 2, text: "Change" })] }))] }), workspace && changing && (_jsx(Card, { border: true, padding: 2, radius: 2, children: _jsxs(Text, { ...muted, children: ["Transcriptions made here go to the workspace this Studio\u2019s VocalStack API key was made in. To use another workspace, set ", _jsx("code", { children: "VOCALSTACK_API_KEY" }), ' ', "where the VocalStack handler runs to a key made in that workspace: in the VocalStack Dashboard, switch to the workspace, then Developers \u2192 API keys."] }) })), action, busy && (_jsxs(Stack, { space: 2, children: [_jsxs(Text, { ...muted, children: [PHASES[progress.phase ?? 'queued'] ?? progress.phase, progress.progress ? ` · ${progress.progress}%` : '…', progress.audio?.totalS ? ` · ${clock(progress.audio.processedS)} of ${clock(progress.audio.totalS)}` : ''] }), _jsx(Card, { radius: 1, style: { height: 4, overflow: 'hidden' }, tone: "transparent", children: _jsx("div", { style: { background: accent, height: '100%', transition: 'width .4s', width: `${progress.progress || 2}%` } }) })] })), notice && (_jsx(Card, { padding: 2, radius: 2, tone: "positive", children: _jsx(Text, { size: 1, children: notice }) })), !busy && status === 'done' && !shownError && (_jsxs(Text, { ...muted, children: ["Transcribed", value?.language ? ` (${value.language})` : '', value?.sentences?.length ? ` · ${value.sentences.length} sentences with timings` : '', "."] })), shownError && (_jsx(Card, { padding: 2, radius: 2, tone: "critical", children: _jsx(Text, { size: 1, children: shownError }) })), (partialText || value?.transcript) && (_jsx(Box, { children: _jsx(TextArea, { onChange: (e) => {
                             const text = e.currentTarget.value;
                             onChange([setIfMissing({ _type: TRANSCRIPT_TYPE }), text ? set(text, ['transcript']) : unset(['transcript'])]);
                         }, readOnly: readOnly || Boolean(partialText), rows: 10, value: partialText ?? value?.transcript ?? '' }) }))] }) }));

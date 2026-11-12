@@ -11,7 +11,9 @@ import type { JobOutcome, StartRequest, StartResponse } from '../wire.js'
 import { findAudio, jobName, POLL_MS, restored, siblingFileRefs, TRANSCRIPT_TYPE } from '../core.js'
 import { HandlerError, useConnection, useHandler } from '../handler.js'
 import { transcriptText } from '../text.js'
+import { NOT_IN_WORKSPACE } from '../wire.js'
 import { Logo, useAccent } from './Brand.js'
+import { WorkspaceMark } from './WorkspaceMark.js'
 
 /** 2433.0 → "40:33", 4000 → "1:06:40". */
 const clock = (s: number) => {
@@ -65,6 +67,10 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
   const [stopping, setStopping] = useState(false)
   const [progress, setProgress] = useState<Partial<Progress>>({})
   const [error, setError] = useState<string>()
+  // The recording this field was following, when the connected workspace does not have it:
+  // VOCALSTACK_API_KEY now belongs to another workspace. The field offers Transcribe again.
+  const [lost, setLost] = useState<string>()
+  const [changing, setChanging] = useState(false)
   // A short note after a job ends. Inline rather than a toast: Sanity UI moved its toasts between versions.
   const [notice, setNotice] = useState<string>()
   useEffect(() => {
@@ -116,6 +122,7 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
         } else finish(outcome)
       } catch (err) {
         if (cancelled) return
+        if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE) setLost(recordingId)
         // A network blip or a server hiccup should not end the wait; anything refused should.
         if (err instanceof HandlerError && err.status && err.status < 500) return setError(err.message)
         if (err instanceof HandlerError && err.status) setError(err.message)
@@ -154,13 +161,16 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
       const outcome = await call<JobOutcome>(`/recordings/${encodeURIComponent(recordingId)}/stop`, { method: 'POST' })
       if (outcome.kind !== 'processing') finish(outcome)
     } catch (err) {
+      if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE) setLost(recordingId)
       setError((err as Error).message)
     } finally {
       setStopping(false)
     }
   }
 
-  const busy = status === 'processing'
+  const isLost = status === 'processing' && Boolean(recordingId) && lost === recordingId
+  const busy = status === 'processing' && !isLost
+  const workspace = connection?.connected ? connection.workspace : undefined
   const shownError = error ?? (status === 'failed' ? (value?.error ?? undefined) : undefined)
   const partialText = useMemo(() => (busy && progress.partial?.length ? transcriptText(progress.partial as TranscriptSentence[]) : undefined), [busy, progress.partial])
   const muted = { muted: true, size: 1 } as const
@@ -181,7 +191,7 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
         <Button
           disabled={busy || starting || readOnly || !asset}
           onClick={transcribe}
-          text={busy || starting ? 'Transcribing…' : status === 'done' ? 'Transcribe again' : 'Transcribe'}
+          text={busy || starting ? 'Transcribing…' : status === 'done' || isLost ? 'Transcribe again' : 'Transcribe'}
           tone="primary"
         />
         {busy && <Button disabled={stopping || readOnly} mode="ghost" onClick={stop} text={stopping ? 'Stopping…' : 'Stop'} />}
@@ -192,7 +202,27 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
   return (
     <Card border padding={3} radius={2}>
       <Stack space={3}>
-        <Logo height={14} />
+        <Flex align="center" gap={3} justify="space-between" wrap="wrap">
+          <Logo height={14} />
+          {workspace && (
+            <Flex align="center" data-testid="vocalstack-workspace" gap={2} style={{ minWidth: 0 }}>
+              <Text {...muted}>Workspace</Text>
+              <WorkspaceMark size={18} workspace={workspace} />
+              <Text size={1} textOverflow="ellipsis" weight="medium">
+                {workspace.name}
+              </Text>
+              <Button aria-expanded={changing} fontSize={1} mode="bleed" onClick={() => setChanging((c) => !c)} padding={2} text="Change" />
+            </Flex>
+          )}
+        </Flex>
+        {workspace && changing && (
+          <Card border padding={2} radius={2}>
+            <Text {...muted}>
+              Transcriptions made here go to the workspace this Studio’s VocalStack API key was made in. To use another workspace, set <code>VOCALSTACK_API_KEY</code>{' '}
+              where the VocalStack handler runs to a key made in that workspace: in the VocalStack Dashboard, switch to the workspace, then Developers → API keys.
+            </Text>
+          </Card>
+        )}
         {action}
         {busy && (
           <Stack space={2}>

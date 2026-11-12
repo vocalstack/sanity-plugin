@@ -1,3 +1,5 @@
+/** The handler's `code` when a recording is not in the workspace its key belongs to. */
+export const NOT_IN_WORKSPACE = 'not_in_workspace';
 /** The document type of a Studio session (see `SESSION_PREFIX`). */
 export const SESSION_TYPE = 'vocalstack.session';
 /** Session ids are `vocalstack-session.<sha256 hex of the secret>`: dotted, so never public. */

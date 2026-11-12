@@ -1,5 +1,5 @@
-import { accountLabel, DEFAULT_API_URL, VocalStackAPI, VocalStackAPIError } from '../api.js';
-import { SESSION_MAX_AGE_MS, SESSION_PREFIX, SESSION_TYPE, sha256Hex } from '../wire.js';
+import { accountLabel, DEFAULT_API_URL, VocalStackAPI, VocalStackAPIError, workspaceOf } from '../api.js';
+import { NOT_IN_WORKSPACE, SESSION_MAX_AGE_MS, SESSION_PREFIX, SESSION_TYPE, sha256Hex } from '../wire.js';
 import { checkJob, stopJob } from './jobs.js';
 /** `https://<projectId>.api.sanity.io`, or the custom API host, as `@sanity/client` builds it. */
 function sanityHost({ apiHost = 'https://api.sanity.io', projectId, useProjectHostname = true }) {
@@ -36,12 +36,17 @@ async function fetchFile(url) {
 }
 /** Verified sessions, briefly, so a poll every 3 s is not a Sanity query every 3 s. */
 const SESSION_CACHE_MS = 60_000;
+/**
+ * The connection answer, briefly: a rename or a new icon in the Dashboard, and the
+ * icon's re-signed link, reach the Studio within minutes, without a redeploy.
+ */
+export const CONNECTION_CACHE_MS = 5 * 60_000;
 export function createVocalStackHandler(options) {
     const apiKey = options.apiKey ?? globalThis.process?.env?.VOCALSTACK_API_KEY;
     const { dataset, projectId, token } = options.sanity;
     const sanityBase = `${sanityHost(options.sanity)}/v${(options.sanity.apiVersion ?? '2024-01-01').replace(/^v/, '')}`;
     const sessions = new Map();
-    let account;
+    let connection;
     async function query(groq, params) {
         const url = new URL(`${sanityBase}/data/query/${encodeURIComponent(dataset)}`);
         url.searchParams.set('query', groq);
@@ -106,11 +111,17 @@ export function createVocalStackHandler(options) {
         }
         if (!apiKey)
             return fail(503, 'VOCALSTACK_API_KEY is not set where the VocalStack handler runs.', 'not_connected');
-        const api = new VocalStackAPI(apiKey, options.apiURL ?? DEFAULT_API_URL);
+        const apiURL = options.apiURL ?? DEFAULT_API_URL;
+        const api = new VocalStackAPI(apiKey, apiURL);
+        const recordingRoute = route !== 'connection' && route !== 'transcriptions';
         try {
             if (route === 'connection' && request.method === 'GET') {
-                account ??= accountLabel(await api.me());
-                return json({ account, connected: true });
+                if (!connection || connection.until <= Date.now()) {
+                    const me = await api.me();
+                    const workspace = workspaceOf(me, apiURL);
+                    connection = { answer: { account: workspace?.name ?? accountLabel(me), connected: true, workspace }, until: Date.now() + CONNECTION_CACHE_MS };
+                }
+                return json(connection.answer);
             }
             if (route === 'transcriptions' && request.method === 'POST') {
                 const body = (await request.json().catch(() => ({})));
@@ -146,6 +157,11 @@ export function createVocalStackHandler(options) {
             if (err instanceof VocalStackAPIError) {
                 if (err.status === 401)
                     return fail(502, 'VocalStack refused the API key in VOCALSTACK_API_KEY.', 'not_connected');
+                // A key sees only its own workspace: after VOCALSTACK_API_KEY moved to another one, a
+                // recording made with the old key is not found (as is one deleted in VocalStack).
+                if (err.status === 404 && recordingRoute) {
+                    return fail(404, 'This transcription is not in the workspace VocalStack is connected to now: it was made in another workspace, or deleted. Transcribe the audio again to make it here.', NOT_IN_WORKSPACE);
+                }
                 return fail(err.status >= 500 ? 502 : err.status, err.message, err.code);
             }
             return fail(500, err instanceof Error ? err.message : String(err));

@@ -35,9 +35,24 @@ export type StartRequest = {
 export type StartResponse = Required<Pick<VocalStackTranscript, 'recordingId' | 'status' | 'transcriptionId'>>;
 /** `GET {handlerURL}/connection` */
 export type ConnectionResponse = {
+    /** The workspace's name; against an older VocalStack, the key's label. */
     account?: string;
     connected: boolean;
+    /** The workspace the handler's API key belongs to. Absent against a VocalStack that does not say. */
+    workspace?: ConnectionWorkspace;
 };
+/**
+ * A VocalStack workspace. `iconUrl` is its own icon as an absolute link that needs no
+ * key (re-signed from time to time, so not for keeping), or null when it has none.
+ */
+export type ConnectionWorkspace = {
+    iconUrl: null | string;
+    id: string;
+    name: string;
+    personal: boolean;
+};
+/** The handler's `code` when a recording is not in the workspace its key belongs to. */
+export declare const NOT_IN_WORKSPACE = "not_in_workspace";
 /** Every error: `{ code?, error }`. `session` means the Studio should prove itself again. */
 export type ErrorResponse = {
     code?: string;

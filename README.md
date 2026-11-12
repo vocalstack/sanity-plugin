@@ -65,13 +65,14 @@ defineType({
 ## What it adds
 
 - **A `vocalstack.transcript` field type**, to put next to a `file` field (at the top level of a document, or inside an object). Its input has:
+  - the **workspace** the Studio is connected to, with its icon, at the top of the field (see [Workspace](#workspace));
   - a **Transcribe** button, shown when the sibling file is `audio/*`. It shows progress and survives a reload mid-job, because `recordingId` and `status` are saved on the document. **Stop** ends a job you no longer want: the field goes back to how it was (an earlier transcript stays), and VocalStack keeps what it transcribed before the stop.
   - the stored value:
     - `transcript`: text you can edit; paragraphs break on a speaker change or a pause.
     - `sentences`: `[{ start, end, speaker, text }]` in seconds.
     - `status` (`idle`, `processing`, `done` or `failed`), `language`, `error`, `recordingId`, `transcriptionId` and `transcribedAt`.
 - **A "Transcribe audio" document action** on every document type with a transcript field. It starts a job for each transcript field next to an audio file; the field follows the job from there.
-- **The handler** (`@vocalstack/sanity/server`): `GET …/connection`, `POST …/transcriptions`, `GET …/recordings/:id/job` and `POST …/recordings/:id/stop`.
+- **The handler** (`@vocalstack/sanity/server`): `GET …/connection` (`{ connected, account, workspace: { id, name, personal, iconUrl } }`), `POST …/transcriptions`, `GET …/recordings/:id/job` and `POST …/recordings/:id/stop`.
 
 Like any edit in the Studio, the transcript lands in the draft; publish to make it public. Transcripts are plain fields, so GROQ reads them like any other:
 
@@ -104,7 +105,7 @@ The handler, `createVocalStackHandler({ … })`:
 | `allowedOrigins` | any | The Studio origins allowed to call the handler (CORS), e.g. `['https://example.sanity.studio']`. |
 | `apiURL` | `https://api.vocalstack.com` | |
 
-**How the audio reaches VocalStack.** The Studio sends the handler the file's asset id; the handler reads the asset from your dataset, checks that it is `audio/*`, and VocalStack fetches it from Sanity's CDN (`POST /v1/transcriptions { url }`). VocalStack does not fetch loopback or private addresses, so for those the handler reads the file and uploads it. The job runs on VocalStack, and the Studio polls the handler every 3 s. The account is billed per second, with a 5-minute minimum per transcription.
+**How the audio reaches VocalStack.** The Studio sends the handler the file's asset id; the handler reads the asset from your dataset, checks that it is `audio/*`, and VocalStack fetches it from Sanity's CDN (`POST /v1/transcriptions { url }`). VocalStack does not fetch loopback or private addresses, so for those the handler reads the file and uploads it. The job runs on VocalStack, and the Studio polls the handler every 3 s. The key's workspace is billed per second, with a 5-minute minimum per transcription.
 
 ## How the handler knows the caller
 
@@ -115,11 +116,19 @@ The handler only answers someone signed in to the Studio with permission to edit
 
 Only someone who can write to the dataset can create a session. The id has a dot in it, so Sanity never serves it to unauthenticated requests, even from a public dataset; project members who can read the dataset see the hash, never the secret. Expired sessions are swept by the Studio. The handler keeps no cookies, so CORS from any origin is safe; `allowedOrigins` narrows it further.
 
-The VocalStack key never reaches a browser: it lives in the handler's environment only. Anyone who can edit the dataset can start, follow and stop transcriptions on that key's account.
+The VocalStack key never reaches a browser: it lives in the handler's environment only. Anyone who can edit the dataset can start, follow and stop transcriptions in that key's workspace.
+
+## Workspace
+
+A VocalStack API key belongs to one workspace: every transcription the plugin makes lands in that workspace and is billed there. The transcript field shows which one, as the VocalStack Dashboard does: **Workspace**, its icon (its own picture, a person for the personal workspace, or its initials on its colour) and its name. The handler reads it from `GET /v1/me` and keeps it for five minutes, so a new name or icon shows up in the Studio without a redeploy.
+
+There is no workspace switch in the Studio, because the key lives in the handler's environment. To use another workspace, set `VOCALSTACK_API_KEY` where the handler runs to a key made in that workspace: in the [Dashboard](https://app.vocalstack.com), switch to the workspace, then Developers → API keys. **Change**, next to the workspace's name, says the same.
+
+After the key moves to another workspace, transcripts already saved on documents stay as they are. A job that was still running under the old key cannot be followed any more: its field says that the transcription is not in the connected workspace and offers **Transcribe again**, which makes a new one in the new workspace.
 
 ## Testing
 
-`e2e/run.sh` runs a real Studio on a fake Content Lake against the handler and a real VocalStack, in Chromium; see [e2e/README.md](e2e/README.md).
+`pnpm test` builds `dist/` and runs the unit tests in `test/` (the workspace mark, the handler's `…/connection` answer). `e2e/run.sh` runs a real Studio on a fake Content Lake against the handler and a real VocalStack, in Chromium; see [e2e/README.md](e2e/README.md).
 
 ## One-click connect
 
