@@ -66,13 +66,13 @@ defineType({
 
 - **A `vocalstack.transcript` field type**, to put next to a `file` field (at the top level of a document, or inside an object). Its input has:
   - the **workspace** the Studio is connected to, with its icon, at the top of the field (see [Workspace](#workspace));
-  - a **Transcribe** button, shown when the sibling file is `audio/*`. It shows progress and survives a reload mid-job, because `recordingId` and `status` are saved on the document. **Stop** ends a job you no longer want: the field goes back to how it was (an earlier transcript stays), and VocalStack keeps what it transcribed before the stop.
+  - a **Transcribe** button, shown when the sibling file is `audio/*`. It shows progress and survives a reload mid-job, because `transcriptionId` and `status` are saved on the document. **Stop** ends a job you no longer want: the field goes back to how it was (an earlier transcript stays), and VocalStack keeps what it transcribed before the stop.
   - the stored value:
     - `transcript`: text you can edit; paragraphs break on a speaker change or a pause.
     - `sentences`: `[{ start, end, speaker, text }]` in seconds.
-    - `status` (`idle`, `processing`, `done` or `failed`), `language`, `error`, `recordingId`, `transcriptionId` and `transcribedAt`.
+    - `status` (`idle`, `processing`, `done` or `failed`), `language`, `error`, `transcriptionId` and `transcribedAt`. Documents saved by 0.2.x also carry a hidden `recordingId`, which is no longer read: a job left running under it is followed by its `transcriptionId`, and one with no `transcriptionId` offers Transcribe again.
 - **A "Transcribe audio" document action** on every document type with a transcript field. It starts a job for each transcript field next to an audio file; the field follows the job from there.
-- **The handler** (`@vocalstack/sanity/server`): `GET …/connection` (`{ connected, account, workspace: { id, name, personal, iconUrl } }`), `POST …/transcriptions`, `GET …/recordings/:id/job` and `POST …/recordings/:id/stop`.
+- **The handler** (`@vocalstack/sanity/server`): `GET …/connection` (`{ connected, account, workspace: { id, name, personal, iconUrl } }`), `POST …/transcriptions`, `GET …/transcriptions/:id/job` and `POST …/transcriptions/:id/stop`.
 
 Like any edit in the Studio, the transcript lands in the draft; publish to make it public. Transcripts are plain fields, so GROQ reads them like any other:
 

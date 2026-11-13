@@ -38,6 +38,7 @@ export type VocalStackTranscript = {
   _type?: 'vocalstack.transcript'
   error?: null | string
   language?: null | string
+  /** Written by versions before 0.3.0; no longer read (VocalStack's API has no recordings). */
   recordingId?: null | string
   sentences?: null | SavedSentence[]
   status?: null | TranscriptStatus

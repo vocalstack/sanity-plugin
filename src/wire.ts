@@ -22,7 +22,7 @@ export type StartRequest = {
   name?: string
 }
 
-export type StartResponse = Required<Pick<VocalStackTranscript, 'recordingId' | 'status' | 'transcriptionId'>>
+export type StartResponse = Required<Pick<VocalStackTranscript, 'status' | 'transcriptionId'>>
 
 /** `GET {handlerURL}/connection` */
 export type ConnectionResponse = {
@@ -39,7 +39,7 @@ export type ConnectionResponse = {
  */
 export type ConnectionWorkspace = { iconUrl: null | string; id: string; name: string; personal: boolean }
 
-/** The handler's `code` when a recording is not in the workspace its key belongs to. */
+/** The handler's `code` when a transcription is not in the workspace its key belongs to. */
 export const NOT_IN_WORKSPACE = 'not_in_workspace'
 
 /** Every error: `{ code?, error }`. `session` means the Studio should prove itself again. */

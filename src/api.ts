@@ -9,7 +9,7 @@ export const DEFAULT_API_URL = 'https://api.vocalstack.com'
 /** Sent as the User-Agent of every call to VocalStack (they run in the
  *  handler, on the server): VocalStack lists the transcriptions it makes
  *  as made in Sanity. Keep it to package.json's version. */
-export const PLUGIN_VERSION = '0.2.0'
+export const PLUGIN_VERSION = '0.3.0'
 export const DEFAULT_DASHBOARD_URL = 'https://app.vocalstack.com'
 
 export type JobState = 'cropping' | 'done' | 'failed' | 'fetching' | 'queued' | 'stopped' | 'transcribing'
@@ -19,7 +19,6 @@ export type Job = {
   /** Why a failed job failed; `stopped` when its owner stopped it. */
   errorCode?: null | string
   progress: { pct: number; phase?: null | string; phasePct?: null | number; processedS?: number; totalS?: null | number }
-  recordingId: string
   state: JobState
   transcriptionId: string
 }
@@ -96,17 +95,17 @@ export class VocalStackAPI {
     return this.request<Transcription>('POST', '/v1/transcriptions', form, { 'idempotency-key': opts.idempotencyKey })
   }
 
-  job(recordingId: string) {
-    return this.request<Job>('GET', `/v1/recordings/${encodeURIComponent(recordingId)}/job`)
+  job(transcriptionId: string) {
+    return this.request<Job>('GET', `/v1/transcriptions/${encodeURIComponent(transcriptionId)}/job`)
   }
 
   /** Stop a job before it is done. Its job fails with `stopped`; what was transcribed so far stays in VocalStack. */
-  stop(recordingId: string, reason?: string) {
-    return this.request<unknown>('POST', `/v1/recordings/${encodeURIComponent(recordingId)}/stop`, { reason: reason ?? null })
+  stop(transcriptionId: string, reason?: string) {
+    return this.request<unknown>('POST', `/v1/transcriptions/${encodeURIComponent(transcriptionId)}/stop`, { reason: reason ?? null })
   }
 
-  transcript(recordingId: string) {
-    return this.request<Transcript>('GET', `/v1/recordings/${encodeURIComponent(recordingId)}/transcript`)
+  transcript(transcriptionId: string) {
+    return this.request<Transcript>('GET', `/v1/transcriptions/${encodeURIComponent(transcriptionId)}/transcript`)
   }
 }
 

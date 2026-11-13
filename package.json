@@ -1,6 +1,6 @@
 {
   "name": "@vocalstack/sanity",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "VocalStack for Sanity Studio: a Transcribe button next to every audio file.",
   "license": "MIT",
   "type": "module",

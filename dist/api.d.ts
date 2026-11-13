@@ -7,7 +7,7 @@ export declare const DEFAULT_API_URL = "https://api.vocalstack.com";
 /** Sent as the User-Agent of every call to VocalStack (they run in the
  *  handler, on the server): VocalStack lists the transcriptions it makes
  *  as made in Sanity. Keep it to package.json's version. */
-export declare const PLUGIN_VERSION = "0.2.0";
+export declare const PLUGIN_VERSION = "0.3.0";
 export declare const DEFAULT_DASHBOARD_URL = "https://app.vocalstack.com";
 export type JobState = 'cropping' | 'done' | 'failed' | 'fetching' | 'queued' | 'stopped' | 'transcribing';
 export type Job = {
@@ -21,7 +21,6 @@ export type Job = {
         processedS?: number;
         totalS?: null | number;
     };
-    recordingId: string;
     state: JobState;
     transcriptionId: string;
 };
@@ -74,10 +73,10 @@ export declare class VocalStackAPI {
         name: string;
         spokenLanguage?: string;
     }): Promise<Transcription>;
-    job(recordingId: string): Promise<Job>;
+    job(transcriptionId: string): Promise<Job>;
     /** Stop a job before it is done. Its job fails with `stopped`; what was transcribed so far stays in VocalStack. */
-    stop(recordingId: string, reason?: string): Promise<unknown>;
-    transcript(recordingId: string): Promise<Transcript>;
+    stop(transcriptionId: string, reason?: string): Promise<unknown>;
+    transcript(transcriptionId: string): Promise<Transcript>;
 }
 /** A short label for the connected account, from whatever `/v1/me` carries. */
 export declare function accountLabel(me: Record<string, unknown>): string | undefined;

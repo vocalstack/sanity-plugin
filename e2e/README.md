@@ -49,7 +49,7 @@ The asset URLs point at `127.0.0.1`, which VocalStack refuses to fetch, so the h
 1. **Sign in**: the Studio opens with the editor's token and lists the episode.
 2. **Open the document**: the transcript field reaches the handler (`/connection`) and asks for audio.
 3. **Upload the audio** through the Studio's file input; the draft references a `sanity.fileAsset` of type `audio/*`.
-4. **Transcribe**: the field shows Stop, and the draft has `status: processing` and a `recordingId`.
+4. **Transcribe**: the field shows Stop, and the draft has `status: processing` and a `transcriptionId`.
 5. **Progress shows** (phase and percentage).
 6. **Reload mid-job**: after a reload the field is still following the same job.
 7. **Transcript saved**: the draft has `status: done`, the text (at least five words, the same as the field shows), timed sentences, a language and `transcribedAt`. It also checks the field polled about once every 3 s.

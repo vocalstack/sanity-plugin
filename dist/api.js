@@ -6,7 +6,7 @@ export const DEFAULT_API_URL = 'https://api.vocalstack.com';
 /** Sent as the User-Agent of every call to VocalStack (they run in the
  *  handler, on the server): VocalStack lists the transcriptions it makes
  *  as made in Sanity. Keep it to package.json's version. */
-export const PLUGIN_VERSION = '0.2.0';
+export const PLUGIN_VERSION = '0.3.0';
 export const DEFAULT_DASHBOARD_URL = 'https://app.vocalstack.com';
 export class VocalStackAPIError extends Error {
     code;
@@ -52,15 +52,15 @@ export class VocalStackAPI {
         form.append('file', file, fileName);
         return this.request('POST', '/v1/transcriptions', form, { 'idempotency-key': opts.idempotencyKey });
     }
-    job(recordingId) {
-        return this.request('GET', `/v1/recordings/${encodeURIComponent(recordingId)}/job`);
+    job(transcriptionId) {
+        return this.request('GET', `/v1/transcriptions/${encodeURIComponent(transcriptionId)}/job`);
     }
     /** Stop a job before it is done. Its job fails with `stopped`; what was transcribed so far stays in VocalStack. */
-    stop(recordingId, reason) {
-        return this.request('POST', `/v1/recordings/${encodeURIComponent(recordingId)}/stop`, { reason: reason ?? null });
+    stop(transcriptionId, reason) {
+        return this.request('POST', `/v1/transcriptions/${encodeURIComponent(transcriptionId)}/stop`, { reason: reason ?? null });
     }
-    transcript(recordingId) {
-        return this.request('GET', `/v1/recordings/${encodeURIComponent(recordingId)}/transcript`);
+    transcript(transcriptionId) {
+        return this.request('GET', `/v1/transcriptions/${encodeURIComponent(transcriptionId)}/transcript`);
     }
 }
 /** A short label for the connected account, from whatever `/v1/me` carries. */

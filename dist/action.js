@@ -66,8 +66,8 @@ export const transcribeAction = (options) => {
                         const fields = await call('/transcriptions', { body, method: 'POST' });
                         patch.execute([
                             { setIfMissing: { [at]: { _type: TRANSCRIPT_TYPE } } },
-                            { set: { [`${at}.status`]: fields.status, [`${at}.recordingId`]: fields.recordingId, [`${at}.transcriptionId`]: fields.transcriptionId } },
-                            { unset: [`${at}.error`] },
+                            { set: { [`${at}.status`]: fields.status, [`${at}.transcriptionId`]: fields.transcriptionId } },
+                            { unset: [`${at}.error`, `${at}.recordingId`] },
                         ]);
                         started++;
                     }

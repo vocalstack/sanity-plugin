@@ -48,7 +48,7 @@ export function TranscriptInput(props) {
     const [stopping, setStopping] = useState(false);
     const [progress, setProgress] = useState({});
     const [error, setError] = useState();
-    // The recording this field was following, when the connected workspace does not have it:
+    // The transcription this field was following, when the connected workspace does not have it:
     // VOCALSTACK_API_KEY now belongs to another workspace. The field offers Transcribe again.
     const [lost, setLost] = useState();
     const [changing, setChanging] = useState(false);
@@ -80,17 +80,17 @@ export function TranscriptInput(props) {
             setNotice('Transcript ready.');
     }, [apply]);
     // Follow a running job, also one started before a reload or from the document action:
-    // recordingId and status are saved on the document.
+    // transcriptionId and status are saved on the document.
     const status = value?.status ?? 'idle';
-    const recordingId = value?.recordingId;
+    const transcriptionId = value?.transcriptionId;
     useEffect(() => {
-        if (status !== 'processing' || !recordingId)
+        if (status !== 'processing' || !transcriptionId)
             return;
         let cancelled = false;
         let timer;
         const tick = async () => {
             try {
-                const outcome = await call(`/recordings/${encodeURIComponent(recordingId)}/job`);
+                const outcome = await call(`/transcriptions/${encodeURIComponent(transcriptionId)}/job`);
                 if (cancelled)
                     return;
                 setError(undefined);
@@ -105,7 +105,7 @@ export function TranscriptInput(props) {
                 if (cancelled)
                     return;
                 if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE)
-                    setLost(recordingId);
+                    setLost(transcriptionId);
                 // A network blip or a server hiccup should not end the wait; anything refused should.
                 if (err instanceof HandlerError && err.status && err.status < 500)
                     return setError(err.message);
@@ -119,7 +119,7 @@ export function TranscriptInput(props) {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [call, finish, recordingId, status]);
+    }, [call, finish, status, transcriptionId]);
     const transcribe = async () => {
         if (!asset)
             return;
@@ -129,7 +129,7 @@ export function TranscriptInput(props) {
         setProgress({});
         try {
             const body = { assetId: asset._id, documentId: document._id, fieldPath: pathString(path), name: jobName(document, asset) };
-            apply({ ...(await call('/transcriptions', { body, method: 'POST' })), error: null });
+            apply({ ...(await call('/transcriptions', { body, method: 'POST' })), error: null, recordingId: null });
         }
         catch (err) {
             setError(err.message);
@@ -140,26 +140,27 @@ export function TranscriptInput(props) {
     };
     /** Stop the job. The field goes back to how it was; VocalStack keeps what it heard so far. */
     const stop = async () => {
-        if (!recordingId)
+        if (!transcriptionId)
             return;
         if (!window.confirm('Stop transcribing? What VocalStack has transcribed so far stays in your VocalStack dashboard.'))
             return;
         setStopping(true);
         try {
-            const outcome = await call(`/recordings/${encodeURIComponent(recordingId)}/stop`, { method: 'POST' });
+            const outcome = await call(`/transcriptions/${encodeURIComponent(transcriptionId)}/stop`, { method: 'POST' });
             if (outcome.kind !== 'processing')
                 finish(outcome);
         }
         catch (err) {
             if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE)
-                setLost(recordingId);
+                setLost(transcriptionId);
             setError(err.message);
         }
         finally {
             setStopping(false);
         }
     };
-    const isLost = status === 'processing' && Boolean(recordingId) && lost === recordingId;
+    // A job saved without a transcription id cannot be followed: offer Transcribe again.
+    const isLost = status === 'processing' && (!transcriptionId || lost === transcriptionId);
     const busy = status === 'processing' && !isLost;
     const workspace = connection?.connected ? connection.workspace : undefined;
     const shownError = error ?? (status === 'failed' ? (value?.error ?? undefined) : undefined);

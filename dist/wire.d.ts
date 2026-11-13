@@ -32,7 +32,7 @@ export type StartRequest = {
     /** The transcription's name in VocalStack. Default: the file's name. */
     name?: string;
 };
-export type StartResponse = Required<Pick<VocalStackTranscript, 'recordingId' | 'status' | 'transcriptionId'>>;
+export type StartResponse = Required<Pick<VocalStackTranscript, 'status' | 'transcriptionId'>>;
 /** `GET {handlerURL}/connection` */
 export type ConnectionResponse = {
     /** The workspace's name; against an older VocalStack, the key's label. */
@@ -51,7 +51,7 @@ export type ConnectionWorkspace = {
     name: string;
     personal: boolean;
 };
-/** The handler's `code` when a recording is not in the workspace its key belongs to. */
+/** The handler's `code` when a transcription is not in the workspace its key belongs to. */
 export declare const NOT_IN_WORKSPACE = "not_in_workspace";
 /** Every error: `{ code?, error }`. `session` means the Studio should prove itself again. */
 export type ErrorResponse = {

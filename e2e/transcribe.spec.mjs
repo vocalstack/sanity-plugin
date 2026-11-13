@@ -68,7 +68,7 @@ const pageErrors = []
 page.on('pageerror', (e) => pageErrors.push(e.message))
 // Count the field's polls, to catch a poll loop that restarts on every render.
 const polls = []
-page.on('request', (r) => /\/recordings\/[^/]+\/job$/.test(new URL(r.url()).pathname) && r.method() === 'GET' && polls.push(Date.now()))
+page.on('request', (r) => /\/transcriptions\/[^/]+\/job$/.test(new URL(r.url()).pathname) && r.method() === 'GET' && polls.push(Date.now()))
 page.on('dialog', (d) => d.accept())
 
 const field = page.locator('[data-testid="field-transcript"]')
@@ -111,9 +111,9 @@ try {
     await stopButton.waitFor({ timeout: 30_000 })
     const t = await until('status "processing" on the draft', async () => {
       const v = (await stored(DRAFT))?.transcript
-      return v?.status === 'processing' && v.recordingId ? v : undefined
+      return v?.status === 'processing' && v.transcriptionId && !v.transcriptionId ? v : undefined
     })
-    return `recordingId ${t.recordingId}, transcriptionId ${t.transcriptionId}`
+    return `transcriptionId ${t.transcriptionId}`
   })
 
   await step('Progress shows', page, async () => {
@@ -129,8 +129,8 @@ try {
     await stopButton.waitFor({ timeout: 30_000 })
     await progressText.first().waitFor({ timeout: 30_000 })
     const after = (await stored(DRAFT)).transcript
-    assert.equal(after.recordingId, before.recordingId, 'the same job after the reload')
-    return `after the reload: "${await progressText.first().innerText()}", following ${after.recordingId}`
+    assert.equal(after.transcriptionId, before.transcriptionId, 'the same job after the reload')
+    return `after the reload: "${await progressText.first().innerText()}", following ${after.transcriptionId}`
   })
 
   await step('Transcript saved', page, async () => {
@@ -158,7 +158,7 @@ try {
     await page.getByRole('menuitem', { name: /Transcribe audio/ }).click()
     const started = await until('a new job from the action', async () => {
       const v = (await stored(DRAFT)).transcript
-      return v.status === 'processing' && v.recordingId !== before.recordingId ? v : undefined
+      return v.status === 'processing' && v.transcriptionId !== before.transcriptionId ? v : undefined
     })
     await page.keyboard.press('Escape')
     await stopButton.waitFor({ timeout: 30_000 })
@@ -167,14 +167,14 @@ try {
       return v.status === 'done' && v.transcribedAt !== before.transcribedAt ? v : undefined
     }, JOB_TIMEOUT_MS, 1000)
     assert.ok(done.transcript.trim().length > 0)
-    return `job ${started.recordingId} → "${done.transcript.slice(0, 80)}…"`
+    return `job ${started.transcriptionId} → "${done.transcript.slice(0, 80)}…"`
   })
 
   await step('Stop', page, async () => {
     const before = (await stored(DRAFT)).transcript
     await transcribeButton.click()
     await stopButton.waitFor({ timeout: 30_000 })
-    await until('the new job on the draft', async () => (await stored(DRAFT)).transcript.recordingId !== before.recordingId)
+    await until('the new job on the draft', async () => (await stored(DRAFT)).transcript.transcriptionId !== before.transcriptionId)
     await stopButton.click() // the confirm dialog is accepted
     await field.getByText('Transcription stopped.').waitFor({ timeout: 30_000 })
     const after = await until('status back to "done"', async () => ((await stored(DRAFT)).transcript.status === 'done' ? (await stored(DRAFT)).transcript : undefined))

@@ -41,7 +41,7 @@ export const transcriptType = (options) => defineType({
         }),
         defineField({ name: 'language', type: 'string', readOnly: true }),
         defineField({ name: 'error', type: 'string', readOnly: true }),
-        defineField({ name: 'recordingId', title: 'Recording ID', type: 'string', readOnly: true }),
+        defineField({ name: 'recordingId', title: 'Recording ID', type: 'string', readOnly: true, hidden: true }),
         defineField({ name: 'transcriptionId', title: 'Transcription ID', type: 'string', readOnly: true }),
         defineField({ name: 'transcribedAt', type: 'datetime', readOnly: true }),
     ],

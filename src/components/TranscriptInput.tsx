@@ -67,7 +67,7 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
   const [stopping, setStopping] = useState(false)
   const [progress, setProgress] = useState<Partial<Progress>>({})
   const [error, setError] = useState<string>()
-  // The recording this field was following, when the connected workspace does not have it:
+  // The transcription this field was following, when the connected workspace does not have it:
   // VOCALSTACK_API_KEY now belongs to another workspace. The field offers Transcribe again.
   const [lost, setLost] = useState<string>()
   const [changing, setChanging] = useState(false)
@@ -104,16 +104,16 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
   )
 
   // Follow a running job, also one started before a reload or from the document action:
-  // recordingId and status are saved on the document.
+  // transcriptionId and status are saved on the document.
   const status = value?.status ?? 'idle'
-  const recordingId = value?.recordingId
+  const transcriptionId = value?.transcriptionId
   useEffect(() => {
-    if (status !== 'processing' || !recordingId) return
+    if (status !== 'processing' || !transcriptionId) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const tick = async () => {
       try {
-        const outcome = await call<JobOutcome>(`/recordings/${encodeURIComponent(recordingId)}/job`)
+        const outcome = await call<JobOutcome>(`/transcriptions/${encodeURIComponent(transcriptionId)}/job`)
         if (cancelled) return
         setError(undefined)
         if (outcome.kind === 'processing') {
@@ -122,7 +122,7 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
         } else finish(outcome)
       } catch (err) {
         if (cancelled) return
-        if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE) setLost(recordingId)
+        if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE) setLost(transcriptionId)
         // A network blip or a server hiccup should not end the wait; anything refused should.
         if (err instanceof HandlerError && err.status && err.status < 500) return setError(err.message)
         if (err instanceof HandlerError && err.status) setError(err.message)
@@ -134,7 +134,7 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
       cancelled = true
       clearTimeout(timer)
     }
-  }, [call, finish, recordingId, status])
+  }, [call, finish, status, transcriptionId])
 
   const transcribe = async () => {
     if (!asset) return
@@ -144,7 +144,7 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
     setProgress({})
     try {
       const body: StartRequest = { assetId: asset._id, documentId: document._id, fieldPath: pathString(path), name: jobName(document, asset) }
-      apply({ ...(await call<StartResponse>('/transcriptions', { body, method: 'POST' })), error: null })
+      apply({ ...(await call<StartResponse>('/transcriptions', { body, method: 'POST' })), error: null, recordingId: null })
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -154,21 +154,22 @@ export function TranscriptInput(props: ObjectInputProps<VocalStackTranscript> & 
 
   /** Stop the job. The field goes back to how it was; VocalStack keeps what it heard so far. */
   const stop = async () => {
-    if (!recordingId) return
+    if (!transcriptionId) return
     if (!window.confirm('Stop transcribing? What VocalStack has transcribed so far stays in your VocalStack dashboard.')) return
     setStopping(true)
     try {
-      const outcome = await call<JobOutcome>(`/recordings/${encodeURIComponent(recordingId)}/stop`, { method: 'POST' })
+      const outcome = await call<JobOutcome>(`/transcriptions/${encodeURIComponent(transcriptionId)}/stop`, { method: 'POST' })
       if (outcome.kind !== 'processing') finish(outcome)
     } catch (err) {
-      if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE) setLost(recordingId)
+      if (err instanceof HandlerError && err.code === NOT_IN_WORKSPACE) setLost(transcriptionId)
       setError((err as Error).message)
     } finally {
       setStopping(false)
     }
   }
 
-  const isLost = status === 'processing' && Boolean(recordingId) && lost === recordingId
+  // A job saved without a transcription id cannot be followed: offer Transcribe again.
+  const isLost = status === 'processing' && (!transcriptionId || lost === transcriptionId)
   const busy = status === 'processing' && !isLost
   const workspace = connection?.connected ? connection.workspace : undefined
   const shownError = error ?? (status === 'failed' ? (value?.error ?? undefined) : undefined)

@@ -17,8 +17,8 @@ const round = (n: number) => Math.round(n * 1000) / 1000
 export const toSaved = (sentences: TranscriptSentence[]): SavedSentence[] =>
   sentences.map((s, i) => ({ _key: `s${s.id ?? i}`, _type: 'sentence', end: round(s.end), speaker: s.speaker, start: round(s.start), text: s.text }))
 
-export async function checkJob(api: VocalStackAPI, recordingId: string): Promise<JobOutcome> {
-  const job = await api.job(recordingId)
+export async function checkJob(api: VocalStackAPI, transcriptionId: string): Promise<JobOutcome> {
+  const job = await api.job(transcriptionId)
   if (job.state === 'stopped' || (job.state === 'failed' && job.errorCode === 'stopped')) return { kind: 'stopped' }
   if (job.state === 'failed' || job.state === 'cropping') {
     const error = job.state === 'cropping' ? 'VocalStack is waiting for a crop window; open the transcription in VocalStack.' : (job.error ?? 'The transcription failed.')
@@ -28,10 +28,10 @@ export async function checkJob(api: VocalStackAPI, recordingId: string): Promise
     const progress = job.state === 'fetching' ? (job.progress.phasePct ?? 0) : job.progress.pct
     if (job.state !== 'transcribing') return { kind: 'processing', phase: job.progress.phase ?? job.state, progress }
     // Sentences are readable while the job runs; send what is there so far.
-    const partial = await api.transcript(recordingId).then(toSentences, () => undefined)
+    const partial = await api.transcript(transcriptionId).then(toSentences, () => undefined)
     return { audio: { processedS: job.progress.processedS ?? 0, totalS: job.progress.totalS ?? undefined }, kind: 'processing', partial, phase: 'transcribing', progress }
   }
-  const transcript = await api.transcript(recordingId)
+  const transcript = await api.transcript(transcriptionId)
   const sentences = toSentences(transcript)
   return {
     kind: 'done',
@@ -47,12 +47,12 @@ export async function checkJob(api: VocalStackAPI, recordingId: string): Promise
 }
 
 /** Stop a job. If it ended meanwhile, take its outcome instead. */
-export async function stopJob(api: VocalStackAPI, recordingId: string): Promise<JobOutcome> {
+export async function stopJob(api: VocalStackAPI, transcriptionId: string): Promise<JobOutcome> {
   try {
-    await api.stop(recordingId, 'Stopped from Sanity')
+    await api.stop(transcriptionId, 'Stopped from Sanity')
     return { kind: 'stopped' }
   } catch (err) {
-    if (err instanceof VocalStackAPIError && err.status === 409) return checkJob(api, recordingId).catch((): JobOutcome => ({ kind: 'stopped' }))
+    if (err instanceof VocalStackAPIError && err.status === 409) return checkJob(api, transcriptionId).catch((): JobOutcome => ({ kind: 'stopped' }))
     throw err
   }
 }

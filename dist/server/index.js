@@ -97,9 +97,9 @@ export function createVocalStackHandler(options) {
         if (request.method === 'OPTIONS')
             return new Response(null, { headers, status: 204 });
         // The route's tail, wherever the handler is mounted: …/connection, …/transcriptions,
-        // …/recordings/:id/job, …/recordings/:id/stop.
+        // …/transcriptions/:id/job, …/transcriptions/:id/stop.
         const path = new URL(request.url).pathname.replace(/\/+$/, '');
-        const route = path.match(/\/(connection|transcriptions)$/)?.[1] ?? path.match(/\/recordings\/([^/]+)\/(job|stop)$/)?.slice(1).join(' ');
+        const route = path.match(/\/(connection|transcriptions)$/)?.[1] ?? path.match(/\/transcriptions\/([^/]+)\/(job|stop)$/)?.slice(1).join(' ');
         if (!route)
             return fail(404, 'Not a VocalStack route.');
         try {
@@ -113,7 +113,7 @@ export function createVocalStackHandler(options) {
             return fail(503, 'VOCALSTACK_API_KEY is not set where the VocalStack handler runs.', 'not_connected');
         const apiURL = options.apiURL ?? DEFAULT_API_URL;
         const api = new VocalStackAPI(apiKey, apiURL);
-        const recordingRoute = route !== 'connection' && route !== 'transcriptions';
+        const jobRoute = route !== 'connection' && route !== 'transcriptions';
         try {
             if (route === 'connection' && request.method === 'GET') {
                 if (!connection || connection.until <= Date.now()) {
@@ -144,13 +144,13 @@ export function createVocalStackHandler(options) {
                 const tx = isPublicURL(url) ? await api.transcribeURL(url, job) : await api.transcribeFile(await fetchFile(url), asset.originalFilename || 'audio', job);
                 if (!tx.job)
                     return fail(502, 'VocalStack did not start a job for this file.');
-                return json({ recordingId: tx.job.recordingId, status: 'processing', transcriptionId: tx.id }, 202);
+                return json({ status: 'processing', transcriptionId: tx.id }, 202);
             }
-            const [recordingId, action] = route.split(' ');
+            const [transcriptionId, action] = route.split(' ');
             if (action === 'job' && request.method === 'GET')
-                return json(await checkJob(api, decodeURIComponent(recordingId)));
+                return json(await checkJob(api, decodeURIComponent(transcriptionId)));
             if (action === 'stop' && request.method === 'POST')
-                return json(await stopJob(api, decodeURIComponent(recordingId)));
+                return json(await stopJob(api, decodeURIComponent(transcriptionId)));
             return fail(405, 'Method not allowed.');
         }
         catch (err) {
@@ -158,8 +158,8 @@ export function createVocalStackHandler(options) {
                 if (err.status === 401)
                     return fail(502, 'VocalStack refused the API key in VOCALSTACK_API_KEY.', 'not_connected');
                 // A key sees only its own workspace: after VOCALSTACK_API_KEY moved to another one, a
-                // recording made with the old key is not found (as is one deleted in VocalStack).
-                if (err.status === 404 && recordingRoute) {
+                // transcription made with the old key is not found (as is one deleted in VocalStack).
+                if (err.status === 404 && jobRoute) {
                     return fail(404, 'This transcription is not in the workspace VocalStack is connected to now: it was made in another workspace, or deleted. Transcribe the audio again to make it here.', NOT_IN_WORKSPACE);
                 }
                 return fail(err.status >= 500 ? 502 : err.status, err.message, err.code);
